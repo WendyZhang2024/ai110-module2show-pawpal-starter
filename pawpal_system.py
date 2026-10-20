@@ -101,6 +101,14 @@ class Owner:
         """Return how many tasks the household has in total."""
         return len(self.get_all_tasks())
 
+    def tasks_with_pets(self) -> list[tuple[str, Task]]:
+        """Return (pet_name, task) pairs for the whole household.
+
+        The Scheduler reads from this instead of looping over pets itself, so
+        every scheduling decision sees every pet's tasks.
+        """
+        return [(pet.name, task) for pet in self.pets for task in pet.tasks]
+
 
 @dataclass
 class Scheduler:
@@ -110,13 +118,17 @@ class Scheduler:
 
     def _entries(self) -> list[tuple[str, Task]]:
         """Collect every (pet_name, task) pair through the Owner."""
-        raise NotImplementedError("Scheduler._entries (Step 4)")
+        return self.owner.tasks_with_pets()
 
     def sort_by_time(
         self, entries: list[tuple[str, Task]] | None = None
     ) -> list[tuple[str, Task]]:
         """Order tasks chronologically by their HH:MM due time."""
-        raise NotImplementedError("Scheduler.sort_by_time (Step 4)")
+        source = self._entries() if entries is None else list(entries)
+        return sorted(
+            source,
+            key=lambda entry: (entry[1].time_minutes(), entry[0].lower()),
+        )
 
     def sort_by_priority(
         self, entries: list[tuple[str, Task]] | None = None

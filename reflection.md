@@ -56,13 +56,47 @@ the stored data simple while giving the scheduler a correct sort key.
 
 **a. How you used AI**
 
-- How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)?
-- What kinds of prompts or questions were most helpful?
+I used the assistant in three modes, and the balance shifted as the project went on.
+
+- **Design partner.** I described the scenario and asked how to split it into
+  classes and where the "planning" responsibility should live. The four-class
+  split — and the rule that `Scheduler` reads through `Owner` instead of
+  touching a `Pet` directly — came out of that conversation.
+- **Reviewer.** After a file was written I asked for a review rather than more
+  code: "what is missing here, what will break?" That is how the aggregation
+  gap surfaced: `Owner` only returned a flat task list, but conflict warnings
+  need pet names, so `tasks_with_pets()` was added.
+- **Debugger of its own output.** Several assistant-written snippets failed the
+  moment they ran (an import of a package that was not installed, a chained
+  `add_pet(...).add_pet(...)` call that returned a `Pet`). Running the code was
+  the only way to catch that.
+
+The narrow prompts were the useful ones — "review this file for missing
+relationships or logic bottlenecks", "what edge cases would break this
+scheduler?" Broad prompts like "build the app" produced code I could not
+explain, so I stopped using them.
 
 **b. Judgment and verification**
 
-- Describe one moment where you did not accept an AI suggestion as-is.
-- How did you evaluate or verify what the AI suggested?
+I did not accept the assistant's proposal to import `tabulate` inside
+`pawpal_system.py` for terminal formatting. It assumed the package was
+available; running `main.py` produced `ModuleNotFoundError`. Since readable
+terminal output does not require a dependency, I kept the logic layer
+dependency-free and formatted with f-strings, and deferred `tabulate` to an
+optional extension instead.
+
+I also removed a `next_available_slot()` method that the assistant had put in
+the UML draft but never implemented. Rather than leave the diagram ahead of the
+code, I deleted it — the rubric asks for a UML that matches the final
+implementation.
+
+For anything else, I checked by running it instead of trusting the
+explanation: small `python -c` scripts per class, then the pytest suite after
+every change. The identity test is the clearest case. I confirmed in the REPL
+that two `Task` objects with identical fields compare equal with `==`, which is
+why `remove_task` compares with `is`, and why there is a permanent regression
+test holding that behaviour in place.
+
 
 ---
 

@@ -22,6 +22,25 @@ Your final app should:
 - Display the plan clearly (and ideally explain the reasoning)
 - Include tests for the most important scheduling behaviors
 
+## 🏗️ Implementation Summary
+
+PawPal+ is one logic layer plus two thin drivers:
+
+| Layer | File | Job |
+|---|---|---|
+| Logic | `pawpal_system.py` | Every rule lives here. No Streamlit, no printing. |
+| Terminal demo | `main.py` | Builds a household and prints the plan. Never imported by the app. |
+| UI | `app.py` | Collects input and calls the logic. Holds no rules of its own. |
+
+Four classes, one responsibility each, wired in a single direction — the drivers talk to `Scheduler`, `Scheduler` talks to `Owner`, `Owner` talks to `Pet`, and every `Pet` owns its own `Task` list:
+
+- **Task** — one activity: description, `due_time` (`"HH:MM"`), duration, priority, completion state. `time_minutes()` exists because `"9:00"` sorts *after* `"10:00"` when compared as text.
+- **Pet** — identity (name, species) plus its own task list, and the methods that manage it.
+- **Owner** — identity plus pets, and `tasks_with_pets()` / `get_all_tasks()`, the only ways the scheduler is allowed to read data. That indirection is what lets a plan cover the whole household instead of one pet at a time.
+- **Scheduler** — reads through the Owner, never keeps a copy of a task, and returns `(pet_name, task)` pairs so every result still knows whose task it is.
+
+Because the `Scheduler` stores no state of its own, there is exactly one source of truth for the data: the UI can be replaced and the logic still works.
+
 ## Getting started
 
 ### Setup
@@ -44,14 +63,37 @@ pip install -r requirements.txt
 
 ## 🖥️ Sample Output
 
-Paste a sample of your app's CLI or Streamlit output here so a reader can see what a generated plan looks like:
+Terminal output of `python main.py` — one owner, two pets, five tasks added
+deliberately out of time order, then the same tasks sorted by `Scheduler`:
 
 ```
-# e.g.:
-# Daily plan for Biscuit (Golden Retriever):
-#   08:00 — Morning walk (30 min) [priority: high]
-#   09:00 — Feeding (10 min) [priority: high]
-#   ...
+PawPal+ - today's schedule
+==============================================================
+Owner: Jordan
+Tasks in the system: 5
+
+As entered (out of time order):
+--------------------------------------------------------------
+  18:30  Biscuit  Evening walk      30 min  medium
+  08:00  Biscuit  Morning walk      30 min  high
+  09:15  Biscuit  Meds               5 min  high
+  07:30  Mochi    Feeding           10 min  high
+  12:00  Mochi    Play session      20 min  low
+
+Today's Schedule (sorted by time):
+--------------------------------------------------------------
+  07:30  Mochi    Feeding           10 min  high
+  08:00  Biscuit  Morning walk      30 min  high
+  09:15  Biscuit  Meds               5 min  high
+  12:00  Mochi    Play session      20 min  low
+  18:30  Biscuit  Evening walk      30 min  medium
+
+Tasks per pet:
+--------------------------------------------------------------
+  Biscuit  dog    3 task(s)
+  Mochi    cat    2 task(s)
+
+Logic layer verified. Next: wire this into the Streamlit UI (Phase 3).
 ```
 
 ## 🧪 Testing PawPal+
