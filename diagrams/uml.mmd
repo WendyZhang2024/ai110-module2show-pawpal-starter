@@ -1,15 +1,49 @@
 classDiagram
-    %% Replace the placeholders below with your actual classes, attributes, methods, and relationships.
-    %% Keep this file updated so it matches your final implementation.
+    %% PawPal+ system design (Phase 1 complete).
+    %% Owner 1 --- * Pet 1 --- * Task.
+    %% The Scheduler reads *every* pet's tasks through the Owner, so a plan is
+    %% built for the whole household instead of for one pet at a time.
+    %% Step 5 will add Task.frequency + Task.due_date for recurring tasks.
 
-    class ClassName {
-        +type attribute
-        +method() returnType
+    class Task {
+        +str description
+        +str due_time
+        +int duration_minutes
+        +str priority
+        +bool completed
+        +mark_complete() Task
+        +time_minutes() int
     }
 
-    class AnotherClass {
-        +type attribute
-        +method() returnType
+    class Pet {
+        +str name
+        +str species
+        +list tasks
+        +add_task(task) Task
+        +remove_task(task) bool
+        +task_count() int
+        +get_tasks(completed) list
     }
 
-    ClassName --> AnotherClass : relationship
+    class Owner {
+        +str name
+        +list pets
+        +add_pet(pet) Pet
+        +get_pet(name) Pet
+        +get_all_tasks() list
+        +total_task_count() int
+    }
+
+    class Scheduler {
+        +Owner owner
+        +sort_by_time(entries) list
+        +sort_by_priority(entries) list
+        +filter_tasks(pet_name, completed, priority) list
+        +detect_conflicts(entries) list
+        +get_daily_plan(target_date, pet_name) list
+        +mark_task_complete(task) Task
+    }
+
+    Owner "1" o-- "0..*" Pet : owns
+    Pet "1" o-- "0..*" Task : has
+    Scheduler --> Owner : reads every task through
