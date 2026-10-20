@@ -4,8 +4,32 @@
 
 **a. Initial design**
 
-- Briefly describe your initial UML design.
-- What classes did you include, and what responsibilities did you assign to each?
+My first design split the system into four classes, one per responsibility:
+
+- **Task** — one care activity. Holds `description`, `due_time` (`"HH:MM"`),
+  `duration_minutes`, `priority` and `completed`. `time_minutes()` converts the
+  time string into minutes past midnight so tasks can be compared numerically,
+  and `mark_complete()` flips the completion flag.
+- **Pet** — identity (`name`, `species`) plus the list of tasks that belong to
+  it, with the methods to manage that list: `add_task`, `remove_task`,
+  `task_count`, `get_tasks`.
+- **Owner** — identity plus a list of pets, and one aggregation method,
+  `get_all_tasks()`, that flattens every pet's tasks into a single list.
+- **Scheduler** — holds an `Owner` and does the planning: sorting, filtering
+  and conflict detection. It stores no tasks of its own.
+
+The three core actions I designed for a user were: add a pet, schedule a care
+task for a pet, and see today's tasks in time order.
+
+Two decisions shaped everything after that. First, `Task` deliberately does not
+store which pet it belongs to — the `Pet` owns its task list, so every task has
+exactly one home and the `Scheduler` never has to keep two copies in sync.
+Second, `Scheduler` reads tasks only through `Owner.get_all_tasks()`, never from
+a single `Pet`. That is what makes "plan the whole household's day" possible and
+lets conflict detection compare one pet's walk against another pet's feeding.
+I kept `due_time` as a string instead of a datetime because plain string
+comparison sorts `"9:00"` after `"10:00"`; a small `time_minutes()` helper keeps
+the stored data simple while giving the scheduler a correct sort key.
 
 **b. Design changes**
 
