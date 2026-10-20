@@ -162,4 +162,15 @@ class Scheduler:
 
     def mark_task_complete(self, task: Task) -> Task | None:
         """Complete a task and file its next occurrence under the same pet."""
-        raise NotImplementedError("Scheduler.mark_task_complete (Step 5)")
+        pet = self._find_pet_for(task)
+        next_task = task.mark_complete()
+        if next_task is not None and pet is not None:
+            pet.add_task(next_task)
+        return next_task
+
+    def _find_pet_for(self, task: Task) -> Pet | None:
+        """Return the pet that owns this task, or None when it is orphaned."""
+        for pet in self.owner.pets:
+            if any(existing is task for existing in pet.tasks):
+                return pet
+        return None
