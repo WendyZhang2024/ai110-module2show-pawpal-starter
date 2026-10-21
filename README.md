@@ -78,15 +78,18 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Suggested workflow
+### Run it
 
-1. Read the scenario carefully and identify requirements and edge cases.
-2. Draft a UML diagram (classes, attributes, methods, relationships).
-3. Convert UML into Python class stubs (no logic yet).
-4. Implement scheduling logic in small increments.
-5. Add tests to verify key behaviors.
-6. Connect your logic to the Streamlit UI in `app.py`.
-7. Refine UML so it matches what you actually built.
+```bash
+streamlit run app.py    # the interactive UI (http://localhost:8501)
+python main.py          # the terminal demo, no browser needed
+python -m pytest -q     # the test suite (40 cases)
+```
+
+The app starts with an empty household: add a pet in the sidebar first, then
+schedule tasks for it. `main.py` needs no arguments and prints the same
+behaviours to a terminal, which is a quick way to check the logic without a
+browser.
 
 ## 🖥️ Sample Output
 
