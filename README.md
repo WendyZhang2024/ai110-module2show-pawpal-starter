@@ -64,73 +64,128 @@ pip install -r requirements.txt
 ## 🖥️ Sample Output
 
 Terminal output of `python main.py` — one owner, two pets, five tasks added
-deliberately out of time order, then the same tasks sorted by `Scheduler`:
+deliberately out of time order, including a cross-pet time clash and a daily
+task:
 
 ```
 PawPal+ - today's schedule
-==============================================================
+======================================================================
 Owner: Jordan
+Pets: Biscuit, Mochi
 Tasks in the system: 5
 
 As entered (out of time order):
---------------------------------------------------------------
+----------------------------------------------------------------------
   18:30  Biscuit  Evening walk      30 min  medium
   08:00  Biscuit  Morning walk      30 min  high
   09:15  Biscuit  Meds               5 min  high
-  07:30  Mochi    Feeding           10 min  high
-  12:00  Mochi    Play session      20 min  low
+  09:15  Mochi    Play session      20 min  low
+  07:30  Mochi    Feeding           10 min  high   repeats daily
 
-Today's Schedule (sorted by time):
---------------------------------------------------------------
-  07:30  Mochi    Feeding           10 min  high
+Today's plan (sorted by time):
+----------------------------------------------------------------------
+  07:30  Mochi    Feeding           10 min  high   repeats daily
   08:00  Biscuit  Morning walk      30 min  high
   09:15  Biscuit  Meds               5 min  high
-  12:00  Mochi    Play session      20 min  low
+  09:15  Mochi    Play session      20 min  low
   18:30  Biscuit  Evening walk      30 min  medium
 
-Tasks per pet:
---------------------------------------------------------------
+Same tasks, highest priority first:
+----------------------------------------------------------------------
+  07:30  Mochi    Feeding           10 min  high   repeats daily
+  08:00  Biscuit  Morning walk      30 min  high
+  09:15  Biscuit  Meds               5 min  high
+  18:30  Biscuit  Evening walk      30 min  medium
+  09:15  Mochi    Play session      20 min  low
+
+Conflict check:
+----------------------------------------------------------------------
+  ! Conflict at 09:15 on 2026-10-21: 'Meds' (Biscuit) and 'Play session' (Mochi) are both booked.
+
+Recurring task check:
+----------------------------------------------------------------------
+  Completing 'Feeding' (daily) ...
+  next occurrence: 2026-10-22 at 07:30
+  today's plan still covers today only: True
+
+Tasks per pet (tomorrow's feeding is already on file):
+----------------------------------------------------------------------
   Biscuit  dog    3 task(s)
-  Mochi    cat    2 task(s)
+  Mochi    cat    3 task(s)
 
-Logic layer verified. Next: wire this into the Streamlit UI (Phase 3).
+Logic layer verified. Run `streamlit run app.py` for the full UI.
 ```
+
 
 ## 🧪 Testing PawPal+
 
 ```bash
 # Run the full test suite:
-pytest
+python -m pytest -q
 
-# Run with coverage:
-pytest --cov
+# With coverage (needs `pip install pytest-cov`):
+python -m pytest --cov=. --cov-report=term-missing
 ```
+
+`python -m pytest` is used instead of plain `pytest` because it puts the project
+root on `sys.path`; `tests/conftest.py` makes the bare command work too.
+
+What the 33 cases cover: task completion and counting, identity-based removal,
+time conversion, chronological sorting across pets, priority sorting with time
+tie-breaks, filtering by pet/status/priority, conflict detection (same pet,
+across pets, ignoring completed tasks), daily and weekly recurrence, and the
+daily plan's date + completion filtering.
 
 Sample test output:
 
 ```
-# Paste your pytest output here
+$ python -m pytest -q
+.................................                                        [100%]
+33 passed in 0.08s
 ```
+
+**Confidence level: 4/5.** The sorting, filtering, recurrence and conflict rules
+are each pinned by at least one test, and the identity-removal behaviour has a
+dedicated regression test. The missing star is duration overlap: a 20-minute task
+at 09:15 and a 30-minute task at 09:25 are not reported as a clash (see the
+tradeoff in `reflection.md`), and nothing yet checks that a day's tasks fit into
+the owner's available hours.
+
 
 ## 📐 Smarter Scheduling
 
-> Fill in once you've implemented scheduling logic.
-
 | Feature | Method(s) | Notes |
 |---------|-----------|-------|
-| Task sorting | | e.g., by priority, duration |
-| Filtering | | e.g., skip tasks if time runs out |
-| Conflict handling | | e.g., overlapping time slots |
-| Recurring tasks | | e.g., daily vs. weekly |
+| Sorting by time | `Scheduler.sort_by_time()` | Compares `Task.time_minutes()` rather than the `"HH:MM"` text, because `"9:00" > "10:00"` as a string. Ties break on pet name so output is stable. |
+| Sorting by priority | `Scheduler.sort_by_priority()` | high → medium → low, then earliest start time within a level. Works across every pet. |
+| Filtering | `Scheduler.filter_tasks()`, `Scheduler.get_daily_plan()` | Filters by pet name, completion status and priority (all optional, combined with AND). The daily plan keeps only today's unfinished tasks. |
+| Conflict handling | `Scheduler.detect_conflicts()` | Flags two unfinished tasks booked on the same day at exactly the same `HH:MM` — including tasks belonging to different pets. Returns warning strings instead of raising, so one bad slot never breaks a plan. |
+| Recurring tasks | `Task.mark_complete()`, `Scheduler.mark_task_complete()` | `daily` → next day, `weekly` → next week, computed with `timedelta`. The new occurrence is filed back under the same pet by the scheduler. |
+
 
 ## 📸 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+1. Start the app with `streamlit run app.py`. Add a pet in the sidebar — name it
+   `Biscuit`, species `dog` — and it appears in the household list with the
+   pet/task counters.
+2. In **Schedule a task**, pick the pet, describe the task, set the start time,
+   the duration, the priority and whether it repeats (`once`, `daily`,
+   `weekly`). Submit.
+3. Add `Morning walk` at 08:00 (high) and then `Evening walk` at 18:30
+   (medium). Today's plan re-sorts on every submit, so the earlier task is
+   always on top.
+4. Switch **Order by** from `Time` to `Priority`: the high-priority tasks move
+   to the top regardless of the clock, with time only breaking ties.
+5. Schedule a second task at a time that is already taken (for example `Meds`
+   at 09:15 and `Play session` on another pet at 09:15). A conflict warning
+   names both tasks, both pets and the clashing time — nothing crashes.
+6. Press **Complete** on a `daily` task. A success message names the date of
+   the next occurrence, the task drops out of today's plan, and tomorrow's copy
+   is already on file under the same pet.
+7. Use **Show** to filter the plan down to a single pet, and **Reset
+   household** in the sidebar to start over.
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+The same behaviours are visible without a browser by running `python main.py`
+(see Sample Output above).
 
 **Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->

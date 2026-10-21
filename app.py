@@ -17,8 +17,16 @@ owner: Owner = st.session_state.owner
 # Scheduler keeps no state of its own, so rebuilding it on every rerun is free.
 scheduler = Scheduler(owner)
 
+# A message queued by the Complete button, shown after the rerun it triggers.
+flash = st.session_state.get("flash")
+if flash:
+    del st.session_state["flash"]
+
 st.title("🐾 PawPal+")
 st.caption("One daily care plan for every pet in the household.")
+
+if flash:
+    st.success(flash)
 
 # --- Sidebar: who we are and who we look after -----------------------------
 with st.sidebar:
@@ -56,24 +64,33 @@ with st.form("add_task", clear_on_submit=True):
     pet_choice = st.selectbox("Pet", [pet.name for pet in owner.pets])
     description = st.text_input("What needs doing?", value="Morning walk")
 
-    col_time, col_duration, col_priority = st.columns(3)
+    col_time, col_duration = st.columns(2)
     with col_time:
         start = st.time_input("Start time", value=dt.time(8, 0))
     with col_duration:
         duration = st.number_input(
             "Minutes", min_value=5, max_value=240, value=20, step=5
         )
+
+    col_priority, col_repeat = st.columns(2)
     with col_priority:
         priority = st.selectbox("Priority", ["low", "medium", "high"], index=2)
+    with col_repeat:
+        frequency = st.selectbox("Repeats", ["once", "daily", "weekly"])
 
     if st.form_submit_button("Add task"):
-        pet = owner.get_pet(pet_choice)
         if not description.strip():
             st.warning("Give the task a name first.")
         else:
             # st.time_input returns a datetime.time, but Task stores "HH:MM".
-            pet.add_task(
-                Task(description, start.strftime("%H:%M"), int(duration), priority)
+            owner.get_pet(pet_choice).add_task(
+                Task(
+                    description,
+                    start.strftime("%H:%M"),
+                    int(duration),
+                    priority,
+                    frequency,
+                )
             )
 
 # --- Everything currently on file ------------------------------------------
@@ -91,32 +108,55 @@ for pet in owner.pets:
     for index, task in enumerate(pet.tasks):
         left, right = st.columns([6, 1], vertical_alignment="center")
         with left:
-            status = "done" if task.completed else "open"
-            st.markdown(
+            line = (
                 f"`{task.due_time}` **{task.description}** — "
-                f"{task.duration_minutes} min · {task.priority} · {status}"
+                f"{task.duration_minutes} min · {task.priority}"
             )
+            if task.frequency != "once":
+                line += f" · repeats {task.frequency}"
+            if task.due_date != dt.date.today():
+                line += f" · {task.due_date:%a %d %b}"
+            if task.completed:
+                line += " · done"
+            st.markdown(line)
         with right:
             if not task.completed:
                 if st.button("Complete", key=f"complete-{pet.name}-{index}"):
-                    scheduler.mark_task_complete(task)
+                    next_task = scheduler.mark_task_complete(task)
+                    if next_task is not None:
+                        st.session_state.flash = (
+                            f"'{task.description}' done — next one on "
+                            f"{next_task.due_date:%A %d %B}."
+                        )
                     st.rerun()
 
 # --- Today's plan ----------------------------------------------------------
 st.divider()
 st.subheader("Today's plan")
 
-pending = [
-    (pet, task) for pet, task in scheduler.sort_by_time() if not task.completed
-]
-completed = sum(1 for task in owner.get_all_tasks() if task.completed)
+col_order, col_pet = st.columns(2)
+with col_order:
+    order = st.segmented_control("Order by", ["Time", "Priority"], default="Time")
+with col_pet:
+    pet_filter = st.selectbox(
+        "Show", ["All pets"] + [pet.name for pet in owner.pets]
+    )
+
+sort_key = "priority" if order == "Priority" else "time"
+plan = scheduler.get_daily_plan(
+    pet_name=None if pet_filter == "All pets" else pet_filter,
+    sort=sort_key,
+)
+
+open_today = len(plan)
+done_total = len(scheduler.filter_tasks(completed=True))
 
 col_pets, col_open, col_done = st.columns(3)
 col_pets.metric("Pets", len(owner.pets))
-col_open.metric("Open tasks", len(pending))
-col_done.metric("Completed", completed)
+col_open.metric("Open today", open_today)
+col_done.metric("Completed", done_total)
 
-if pending:
+if plan:
     st.dataframe(
         [
             {
@@ -125,11 +165,24 @@ if pending:
                 "Task": task.description,
                 "Minutes": task.duration_minutes,
                 "Priority": task.priority,
+                "Repeats": task.frequency,
             }
-            for pet, task in pending
+            for pet, task in plan
         ],
         hide_index=True,
     )
-    st.caption("Sorted by start time, across every pet.")
+    st.caption(
+        "Sorted by start time, across every pet."
+        if sort_key == "time"
+        else "Highest priority first, then earliest start."
+    )
 else:
     st.info("Nothing left to do today - every task is complete.")
+
+# --- Conflicts -------------------------------------------------------------
+conflicts = scheduler.detect_conflicts()
+if conflicts:
+    st.warning(
+        "\n\n".join(conflicts),
+        title=f"{len(conflicts)} scheduling conflict(s)",
+    )

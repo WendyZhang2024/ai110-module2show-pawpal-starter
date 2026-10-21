@@ -5,14 +5,25 @@ Design reference: diagrams/uml.mmd
 This module must stay UI-agnostic so that main.py (CLI) and app.py (Streamlit)
 can both drive the same objects.
 
-Step 3: the data layer (Task, Pet, Owner) is implemented. The Scheduler is
-still a skeleton and fills in during Steps 4-5.
+The Scheduler implements four algorithmic features, all of which read every
+pet's tasks through Owner.tasks_with_pets():
+    1. chronological sorting          sort_by_time()
+    2. priority-first sorting         sort_by_priority()
+    3. filtering by pet/status        filter_tasks()  + get_daily_plan()
+    4. exact-time conflict warnings   detect_conflicts()
+plus recurring tasks, which live on Task.mark_complete().
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
+
+TIME_FORMAT = "%H:%M"
+PRIORITIES = ("low", "medium", "high")
+PRIORITY_RANK = {"low": 1, "medium": 2, "high": 3}
+FREQUENCIES = ("once", "daily", "weekly")
+RECURRENCE_DAYS = {"daily": 1, "weekly": 7}
 
 
 @dataclass
@@ -23,7 +34,20 @@ class Task:
     due_time: str = "09:00"
     duration_minutes: int = 15
     priority: str = "medium"
+    frequency: str = "once"
+    due_date: date = field(default_factory=date.today)
     completed: bool = False
+
+    def __post_init__(self) -> None:
+        """Validate the fields that the scheduler relies on."""
+        self.frequency = str(self.frequency).strip().lower()
+        if self.frequency not in FREQUENCIES:
+            raise ValueError(f"frequency must be one of {FREQUENCIES}")
+        self.priority = str(self.priority).strip().lower()
+        if self.priority not in PRIORITIES:
+            raise ValueError(f"priority must be one of {PRIORITIES}")
+        if isinstance(self.due_date, str):
+            self.due_date = date.fromisoformat(self.due_date)
 
     def time_minutes(self) -> int:
         """Return the due time as minutes since midnight, for sorting."""
@@ -33,9 +57,17 @@ class Task:
     def mark_complete(self) -> Task | None:
         """Mark the task done and return the next occurrence if it recurs."""
         self.completed = True
-        # Step 5 adds daily/weekly recurrence here: return the next Task
-        # instead of None when this task repeats.
-        return None
+        days = RECURRENCE_DAYS.get(self.frequency)
+        if days is None:
+            return None
+        return Task(
+            description=self.description,
+            due_time=self.due_time,
+            duration_minutes=self.duration_minutes,
+            priority=self.priority,
+            frequency=self.frequency,
+            due_date=self.due_date + timedelta(days=days),
+        )
 
 
 @dataclass
@@ -134,7 +166,15 @@ class Scheduler:
         self, entries: list[tuple[str, Task]] | None = None
     ) -> list[tuple[str, Task]]:
         """Order tasks by priority (high first), then by due time."""
-        raise NotImplementedError("Scheduler.sort_by_priority (Step 4)")
+        source = self._entries() if entries is None else list(entries)
+        return sorted(
+            source,
+            key=lambda entry: (
+                -PRIORITY_RANK[entry[1].priority],
+                entry[1].time_minutes(),
+                entry[0].lower(),
+            ),
+        )
 
     def filter_tasks(
         self,
@@ -144,21 +184,62 @@ class Scheduler:
         priority: str | None = None,
     ) -> list[tuple[str, Task]]:
         """Keep the tasks that match every filter which was supplied."""
-        raise NotImplementedError("Scheduler.filter_tasks (Step 4)")
+        source = self._entries() if entries is None else list(entries)
+        wanted_pet = pet_name.strip().lower() if pet_name else None
+        wanted_priority = priority.strip().lower() if priority else None
+
+        kept: list[tuple[str, Task]] = []
+        for owner_name, task in source:
+            if wanted_pet and owner_name.lower() != wanted_pet:
+                continue
+            if completed is not None and task.completed is not completed:
+                continue
+            if wanted_priority and task.priority != wanted_priority:
+                continue
+            kept.append((owner_name, task))
+        return kept
 
     def detect_conflicts(
         self, entries: list[tuple[str, Task]] | None = None
     ) -> list[str]:
-        """Return a warning per pair of unfinished tasks sharing a start time."""
-        raise NotImplementedError("Scheduler.detect_conflicts (Step 5)")
+        """Return a warning per pair of unfinished tasks sharing a start time.
+
+        This is a lightweight check: two tasks conflict when they fall on the
+        same day at exactly the same HH:MM. It reports instead of raising, so
+        one bad slot never breaks the whole plan.
+        """
+        source = self._entries() if entries is None else list(entries)
+        pending = [
+            (pet_name, task) for pet_name, task in source if not task.completed
+        ]
+
+        warnings: list[str] = []
+        for index, (pet_a, task_a) in enumerate(pending):
+            for pet_b, task_b in pending[index + 1 :]:
+                if task_a.due_date != task_b.due_date:
+                    continue
+                if task_a.due_time != task_b.due_time:
+                    continue
+                warnings.append(
+                    f"Conflict at {task_a.due_time} on "
+                    f"{task_a.due_date.isoformat()}: '{task_a.description}' "
+                    f"({pet_a}) and '{task_b.description}' ({pet_b}) are both booked."
+                )
+        return warnings
 
     def get_daily_plan(
         self,
         target_date: date | None = None,
         pet_name: str | None = None,
+        sort: str = "time",
     ) -> list[tuple[str, Task]]:
         """Return one day's unfinished tasks, filtered and sorted for display."""
-        raise NotImplementedError("Scheduler.get_daily_plan (Step 5)")
+        day = target_date or date.today()
+        entries = self.filter_tasks(pet_name=pet_name, completed=False)
+        entries = [(pet, task) for pet, task in entries if task.due_date == day]
+        if sort == "priority":
+            return self.sort_by_priority(entries)
+        return self.sort_by_time(entries)
 
     def mark_task_complete(self, task: Task) -> Task | None:
         """Complete a task and file its next occurrence under the same pet."""

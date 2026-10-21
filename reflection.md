@@ -33,8 +33,25 @@ the stored data simple while giving the scheduler a correct sort key.
 
 **b. Design changes**
 
-- Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
+Yes — two things changed once real logic met the design.
+
+1. **`Owner` grew a second aggregation method.** The first design only had
+   `get_all_tasks()`, returning one flat list of tasks. That was enough to sort
+   a plan, but not enough to *name* anything: a conflict warning has to say
+   "`Meds` (Biscuit) clashes with `Play session` (Mochi)", and filtering by pet
+   needs the pet's name attached to each task. The flat list had already thrown
+   that information away. I added `Owner.tasks_with_pets()` returning
+   `(pet_name, task)` pairs, and made it the only collection the `Scheduler`
+   reads from. `get_all_tasks()` stayed, because counting and simple tests still
+   want the flat view.
+2. **`Task` gained `frequency` and `due_date`.** Neither existed in the first
+   UML, because the first version of the system had no concept of "which day is
+   this" or "does this repeat" — a task was just a description with a time.
+   Supporting recurring tasks forced both fields in: a `daily` task needs to
+   know the date it belongs to so the next occurrence can be computed with
+   `timedelta(days=1)`. Adding `due_date` also made `get_daily_plan()` honest —
+   it now genuinely filters to one calendar day instead of assuming "everything
+   in the list is today".
 
 ---
 
@@ -42,13 +59,45 @@ the stored data simple while giving the scheduler a correct sort key.
 
 **a. Constraints and priorities**
 
-- What constraints does your scheduler consider (for example: time, priority, preferences)?
-- How did you decide which constraints mattered most?
+The scheduler considers six things: which pet the task belongs to, its start
+time, its duration, its priority, whether it repeats, and whether it is already
+done.
+
+I ranked them by what a pet owner can least afford to get wrong. **Start time**
+is the backbone — the output is a timeline, and a timeline that is not in
+chronological order is broken no matter what. **Completion** comes next: a
+finished task must never appear in today's plan, so completion is a filter
+before anything else is ordered. **Priority** is the ordering *preference*
+layered on top of the timeline; it decides what to do first when the owner has
+more to do than hours, but it must not silently reorder the day's fixed points
+(medication at 09:15 is 09:15 even if it is low priority). **Pet** is a filter
+the reader chooses, not a constraint the scheduler imposes, because the whole
+point of the app is planning the household together. **Duration** is stored but
+deliberately not scheduled against available time yet — that is the next
+iteration, and pretending otherwise would be a plan the app cannot keep.
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+The scheduler only flags a conflict when two tasks start at **exactly** the same
+`HH:MM`; it does not check whether their durations overlap. A 20-minute task at
+09:15 and a 30-minute task at 09:25 overlap by 10 minutes in reality, and this
+scheduler will not warn about them.
+
+That is a real gap, and it is a deliberate one. Overlap detection requires
+deciding what "overlapping" means when durations are guesses: a 20-minute walk
+that takes 35 minutes would silently invalidate every computed overlap after it,
+and the plan would start warning about clashes that are not real. Exact-start
+matching has the opposite failure mode — it never invents a conflict, and it
+only ever *under*-reports. For a first version I preferred a detector that is
+always believable to one that is more thorough but occasionally wrong: a warning
+that fires on a false positive teaches the owner to ignore warnings entirely,
+which is worse than no warning at all.
+
+The same tradeoff keeps the algorithm honest and cheap. Comparing every pair is
+`O(n²)`, which is fine for a household's handful of tasks per day and would need
+bucketing by time if the data grew. And because `detect_conflicts()` returns
+warning strings instead of raising, a clash can never take down the plan — the
+owner still gets a schedule, plus an explanation of what to fix.
 
 ---
 
