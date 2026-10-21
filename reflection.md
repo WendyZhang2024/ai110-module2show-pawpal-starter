@@ -111,14 +111,13 @@ I used the assistant in three modes, and the balance shifted as the project went
   classes and where the "planning" responsibility should live. The four-class
   split — and the rule that `Scheduler` reads through `Owner` instead of
   touching a `Pet` directly — came out of that conversation.
-- **Reviewer.** After a file was written I asked for a review rather than more
+- **COde Reviewer.** After a file was written I asked for a review rather than more
   code: "what is missing here, what will break?" That is how the aggregation
   gap surfaced: `Owner` only returned a flat task list, but conflict warnings
   need pet names, so `tasks_with_pets()` was added.
-- **Debugger of its own output.** Several assistant-written snippets failed the
+- **Debugger** Several assistant-written snippets failed the
   moment they ran (an import of a package that was not installed, a chained
-  `add_pet(...).add_pet(...)` call that returned a `Pet`). Running the code was
-  the only way to catch that.
+  `add_pet(...).add_pet(...)` call that returned a `Pet`). Running the code was the only way to catch that.
 
 The narrow prompts were the useful ones — "review this file for missing
 relationships or logic bottlenecks", "what edge cases would break this
@@ -217,28 +216,15 @@ simplified back into a bug.
 
 **b. What you would improve**
 
-Duration. Right now a task's duration is stored and displayed but never actually
-used to plan anything: the scheduler does not check whether the day's tasks fit
-the hours the owner has, and conflicts are start-time only. The next iteration
-would compute free slots between a day's start and end and fit tasks into them
-by priority, which also fixes the overlap blind spot.
+Right now the scheduler does not check whether the day's tasks fit the hours the owner has, and conflicts are start-time only. The next iteration would compute free slots between a day's start and end and fit tasks into them by priority, which also fixes the overlap blind spot.
 
-After that: date navigation (the app only ever plans today), persistence so a
-browser refresh does not wipe the household, and grouping the task list by day
-once a pet has more than a handful of tasks.
+After that: the app only ever plans today. So a
+browser refresh does not wipe the household, and grouping the task list by day once a pet has more than a handful of tasks.
 
 **c. Key takeaway**
 
-An AI assistant is confident in proportion to how *plausible* something sounds,
-not how *true* it is. In one session it imported a package that was not
-installed, and wrote a call chain that contradicted the API it had itself
+An AI assistant is confident in proportion to how *plausible* something sounds, not how *true* it is. In one session it imported a package that was not installed, and wrote a call chain that contradicted the API it had itself
 designed twenty minutes earlier — both looked completely reasonable on the page.
-The habit that caught every one of those was cheap and non-negotiable: run the
-thing immediately, and treat "it looks right" as the start of verification
-rather than the end of it.
+The habit that caught every one of those was cheap and non-negotiable: run the thing immediately.
 
-The deeper lesson is about who owns the judgement. Decisions like "a conflict
-means the same start minute, not overlapping durations" are design decisions,
-not implementation details. If the human does not make them explicitly, the
-assistant's default silently becomes the system's behaviour — and then nobody can
-explain why the app does what it does.
+The deeper lesson is about who owns the judgement. Decisions like "a conflict means the same start minute, not overlapping durations" are design decisions, not implementation details. If the human does not make them explicitly, the assistant's default silently becomes the system's behaviour — and then nobody can explain why the app does what it does.
