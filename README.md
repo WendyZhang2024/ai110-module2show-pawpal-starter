@@ -41,6 +41,33 @@ Four classes, one responsibility each, wired in a single direction — the drive
 
 Because the `Scheduler` stores no state of its own, there is exactly one source of truth for the data: the UI can be replaced and the logic still works.
 
+## ✨ Features
+
+**What the owner can do**
+
+- Add pets (name + species) and see the household update immediately; the data
+  survives every button click.
+- Schedule a task per pet with a start time, duration, priority and repeat mode
+  (`once`, `daily`, `weekly`).
+- Read today's plan as a single timeline across every pet, ordered either by
+  time or by priority.
+- Complete a task. A recurring task queues its next occurrence and tells you the
+  date it landed on.
+- Filter the plan to one pet, and get a warning when two tasks collide.
+- Reset the household to start a clean demo.
+
+**The algorithms behind it**
+
+- `Scheduler.sort_by_time()` — chronological across every pet, with ties broken
+  deterministically.
+- `Scheduler.sort_by_priority()` — high → medium → low, then earliest start time.
+- `Scheduler.filter_tasks()` / `get_daily_plan()` — filter by pet, completion
+  status and priority; the plan keeps one calendar day of unfinished work.
+- `Scheduler.detect_conflicts()` — reports unfinished tasks booked at the same
+  exact minute, including across different pets.
+- `Task.mark_complete()` — recurrence via `timedelta`, and idempotent, so
+  completing the same task twice never duplicates tomorrow's copy.
+
 ## Getting started
 
 ### Setup
@@ -130,18 +157,21 @@ python -m pytest --cov=. --cov-report=term-missing
 `python -m pytest` is used instead of plain `pytest` because it puts the project
 root on `sys.path`; `tests/conftest.py` makes the bare command work too.
 
-What the 33 cases cover: task completion and counting, identity-based removal,
+What the 40 cases cover: task completion and counting, identity-based removal,
 time conversion, chronological sorting across pets, priority sorting with time
 tie-breaks, filtering by pet/status/priority, conflict detection (same pet,
-across pets, ignoring completed tasks), daily and weekly recurrence, and the
-daily plan's date + completion filtering.
+across pets, ignoring completed tasks), daily and weekly recurrence with
+idempotent completion, the daily plan's date + completion filtering, and the
+edge cases that tend to break schedulers — a pet with no tasks, a household
+with no pets, an unknown pet name, a day with nothing scheduled, and invalid
+priority/frequency values.
 
 Sample test output:
 
 ```
 $ python -m pytest -q
-.................................                                        [100%]
-33 passed in 0.08s
+........................................                                 [100%]
+40 passed in 0.06s
 ```
 
 **Confidence level: 4/5.** The sorting, filtering, recurrence and conflict rules
@@ -188,4 +218,5 @@ the owner's available hours.
 The same behaviours are visible without a browser by running `python main.py`
 (see Sample Output above).
 
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->
+**Screenshot or video:** not included — the numbered walkthrough above plus the
+CLI sample output are the demo.

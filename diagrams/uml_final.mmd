@@ -1,0 +1,51 @@
+classDiagram
+    %% PawPal+ system design - final version (Phase 6).
+    %% This file is kept in sync with diagrams/uml.mmd.
+    %% Owner 1 --- * Pet 1 --- * Task, and the Scheduler reads every pet's
+    %% tasks through the Owner so a plan covers the whole household.
+
+    class Task {
+        +str description
+        +str due_time
+        +int duration_minutes
+        +str priority
+        +str frequency
+        +date due_date
+        +bool completed
+        +mark_complete() Task
+        +time_minutes() int
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +list tasks
+        +add_task(task) Task
+        +remove_task(task) bool
+        +task_count() int
+        +get_tasks(completed) list
+    }
+
+    class Owner {
+        +str name
+        +list pets
+        +add_pet(pet) Pet
+        +get_pet(name) Pet
+        +get_all_tasks() list
+        +tasks_with_pets() list
+        +total_task_count() int
+    }
+
+    class Scheduler {
+        +Owner owner
+        +sort_by_time(entries) list
+        +sort_by_priority(entries) list
+        +filter_tasks(pet_name, completed, priority) list
+        +detect_conflicts(entries) list
+        +get_daily_plan(target_date, pet_name, sort) list
+        +mark_task_complete(task) Task
+    }
+
+    Owner "1" o-- "0..*" Pet : owns
+    Pet "1" o-- "0..*" Task : has
+    Scheduler --> Owner : reads every task through

@@ -153,13 +153,48 @@ test holding that behaviour in place.
 
 **a. What you tested**
 
-- What behaviors did you test?
-- Why were these tests important?
+Forty cases across five behaviours, plus the edge cases that usually break a
+scheduler.
+
+- **Task lifecycle** — completing a task flips its status; a `once` task has no
+  successor; `daily` schedules tomorrow and `weekly` schedules seven days out;
+  the new occurrence is filed under the *right* pet.
+- **Ordering** — chronological across every pet, and priority-first with time
+  breaking ties. One test asserts the sorted output differs from the input, so
+  a sort that silently does nothing cannot pass.
+- **Filtering and the daily plan** — by pet, by status, by priority, and all
+  three combined; the plan excludes other days and completed tasks.
+- **Conflict detection** — same pet, across pets, ignoring completed tasks, and
+  a test that pins the method to *return* messages rather than raise.
+- **Data integrity** — identity-based removal, cross-household aggregation,
+  forgiving pet lookup.
+- **Edge cases** — a pet with no tasks, a household with no pets, an unknown pet
+  name, a day with nothing scheduled, invalid `priority`/`frequency`.
+
+These mattered because the UI only ever exercises the happy path. Writing the
+suite immediately paid for itself: the "complete the same daily task twice"
+test failed on the first run and exposed a real bug — two identical tasks were
+being created for tomorrow. Nothing in the browser could reach that path, which
+is exactly the point: tests cover what the *code* can do, not what a user
+happens to click. The identity-removal test is the same idea in reverse: it
+locks in a behaviour that is easy to "simplify" back into a bug.
 
 **b. Confidence**
 
-- How confident are you that your scheduler works correctly?
-- What edge cases would you test next if you had more time?
+**4 out of 5.** Every documented rule has at least one test, the conflict
+detector's promise never to raise is itself tested, and the one bug the suite
+found is fixed and pinned by a regression test.
+
+The missing star is duration. The scheduler compares start times only, so a
+20-minute task at 09:15 and a 30-minute task at 09:25 overlap in reality without
+being flagged, and nothing checks whether the day's tasks fit into the hours the
+owner actually has. Those are real gaps, but they are *documented* gaps — the
+tradeoff is written down rather than hidden.
+
+If I had more time I would test: overlapping durations (which needs a decision
+about what counts as overlap), a task whose duration runs past midnight, the
+DST changeover where the clock hour repeats, and a few hundred tasks to confirm
+the pairwise conflict check stays fast enough.
 
 ---
 
@@ -167,12 +202,43 @@ test holding that behaviour in place.
 
 **a. What went well**
 
-- What part of this project are you most satisfied with?
+The part I am most satisfied with is that the logic layer never depended on the
+UI. `main.py` printed a correct, sorted, conflict-warning plan before `app.py`
+existed, and the exact same objects then ran inside Streamlit unchanged. That
+turned the UI phase into wiring rather than debugging, and it meant that when
+something looked wrong in the browser I already knew the backend was sound.
+
+The second thing I would protect is the identity-based removal. It looked like
+a fussy detail at the time — "surely removing by value is fine" — but the
+scenario where it matters (two tasks with identical fields) is exactly the
+scenario a pet owner creates by repeating the same care task twice in a day.
+Writing the regression test is what stopped that decision from being quietly
+simplified back into a bug.
 
 **b. What you would improve**
 
-- If you had another iteration, what would you improve or redesign?
+Duration. Right now a task's duration is stored and displayed but never actually
+used to plan anything: the scheduler does not check whether the day's tasks fit
+the hours the owner has, and conflicts are start-time only. The next iteration
+would compute free slots between a day's start and end and fit tasks into them
+by priority, which also fixes the overlap blind spot.
+
+After that: date navigation (the app only ever plans today), persistence so a
+browser refresh does not wipe the household, and grouping the task list by day
+once a pet has more than a handful of tasks.
 
 **c. Key takeaway**
 
-- What is one important thing you learned about designing systems or working with AI on this project?
+An AI assistant is confident in proportion to how *plausible* something sounds,
+not how *true* it is. In one session it imported a package that was not
+installed, and wrote a call chain that contradicted the API it had itself
+designed twenty minutes earlier — both looked completely reasonable on the page.
+The habit that caught every one of those was cheap and non-negotiable: run the
+thing immediately, and treat "it looks right" as the start of verification
+rather than the end of it.
+
+The deeper lesson is about who owns the judgement. Decisions like "a conflict
+means the same start minute, not overlapping durations" are design decisions,
+not implementation details. If the human does not make them explicitly, the
+assistant's default silently becomes the system's behaviour — and then nobody can
+explain why the app does what it does.

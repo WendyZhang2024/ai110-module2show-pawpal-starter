@@ -1,9 +1,8 @@
 classDiagram
-    %% PawPal+ system design (Phase 1 complete).
-    %% Owner 1 --- * Pet 1 --- * Task.
-    %% The Scheduler reads *every* pet's tasks through the Owner, so a plan is
-    %% built for the whole household instead of for one pet at a time.
-    %% Step 5 will add Task.frequency + Task.due_date for recurring tasks.
+    %% PawPal+ system design - graded entry point.
+    %% Kept identical to diagrams/uml_final.mmd (the Phase 6 final copy).
+    %% Owner 1 --- * Pet 1 --- * Task, and the Scheduler reads every pet's
+    %% tasks through the Owner so a plan covers the whole household.
 
     class Task {
         +str description
@@ -43,7 +42,7 @@ classDiagram
         +sort_by_priority(entries) list
         +filter_tasks(pet_name, completed, priority) list
         +detect_conflicts(entries) list
-        +get_daily_plan(target_date, pet_name) list
+        +get_daily_plan(target_date, pet_name, sort) list
         +mark_task_complete(task) Task
     }
 
