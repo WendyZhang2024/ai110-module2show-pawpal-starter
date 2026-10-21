@@ -55,7 +55,13 @@ class Task:
         return int(hours) * 60 + int(minutes)
 
     def mark_complete(self) -> Task | None:
-        """Mark the task done and return the next occurrence if it recurs."""
+        """Mark the task done and return the next occurrence if it recurs.
+
+        Idempotent: completing a task that is already done returns None and
+        never creates a second copy of tomorrow's task.
+        """
+        if self.completed:
+            return None
         self.completed = True
         days = RECURRENCE_DAYS.get(self.frequency)
         if days is None:

@@ -340,3 +340,61 @@ def test_scheduler_files_next_occurrence_under_same_pet() -> None:
     assert mochi.task_count() == 2
     assert biscuit.task_count() == 0
     assert mochi.tasks[-1] is next_task
+
+
+# --- edge cases ------------------------------------------------------------
+
+
+def test_pet_with_no_tasks_returns_empty_list() -> None:
+    """A pet that was never given a task reports nothing, not an error."""
+    pet = Pet("Biscuit", "dog")
+
+    assert pet.get_tasks() == []
+    assert pet.get_tasks(completed=False) == []
+    assert pet.task_count() == 0
+
+
+def test_empty_household_scheduler_returns_nothing() -> None:
+    """Every scheduler method is safe on an owner who has no pets yet."""
+    owner = Owner("Jordan")
+    scheduler = Scheduler(owner)
+
+    assert owner.get_all_tasks() == []
+    assert scheduler.sort_by_time() == []
+    assert scheduler.sort_by_priority() == []
+    assert scheduler.detect_conflicts() == []
+    assert scheduler.get_daily_plan() == []
+
+
+def test_filter_by_unknown_pet_returns_nothing(household: Owner) -> None:
+    """An unknown pet name filters everything out instead of raising."""
+    assert Scheduler(household).filter_tasks(pet_name="Rex") == []
+
+
+def test_daily_plan_for_a_day_with_nothing(household: Owner) -> None:
+    """A day with no scheduled tasks gives an empty plan."""
+    tomorrow = date.today() + timedelta(days=1)
+
+    assert Scheduler(household).get_daily_plan(target_date=tomorrow) == []
+
+
+@pytest.mark.parametrize(
+    ("field", "value"), [("priority", "urgent"), ("frequency", "hourly")]
+)
+def test_invalid_task_fields_raise(field: str, value: str) -> None:
+    """A bad priority or frequency fails loudly at construction time."""
+    with pytest.raises(ValueError):
+        Task("Walk", "08:00", 30, **{field: value})
+
+
+def test_completing_a_task_twice_does_not_duplicate_the_next_occurrence() -> None:
+    """Marking the same daily task complete twice must not create two copies."""
+    owner = Owner("Jordan")
+    mochi = owner.add_pet(Pet("Mochi", "cat"))
+    feeding = mochi.add_task(Task("Feeding", "07:30", 10, "high", "daily"))
+    scheduler = Scheduler(owner)
+
+    scheduler.mark_task_complete(feeding)
+    scheduler.mark_task_complete(feeding)
+
+    assert mochi.task_count() == 2  # today's task + exactly one tomorrow
